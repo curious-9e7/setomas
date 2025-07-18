@@ -86,21 +86,21 @@ st.title("🌳 Sistema de Consulta de Guias Florestais")
 if "ultima_atualizacao" not in st.session_state:
     st.session_state["ultima_atualizacao"] = None
 
-if st.button('🔄 Atualizar Dados'):
-    novos = atualizar_dados()
+#if st.button('🔄 Atualizar Dados'):
+    #novos = atualizar_dados()
 
-    if novos:
-        st.success(f"{len(novos)} novos registros adicionados.")
-    else:
-        st.info("Nenhum novo dado encontrado.")
+    #if novos:
+        #st.success(f"{len(novos)} novos registros adicionados.")
+    #else:
+        #st.info("Nenhum novo dado encontrado.")
 
     # ⏰ Atualiza o horário da última execução
-    st.session_state["ultima_atualizacao"] = datetime.now()
+    #st.session_state["ultima_atualizacao"] = datetime.now()
 
 # 🕓 Exibe horário da última atualização
-if st.session_state["ultima_atualizacao"]:
-    horario = st.session_state["ultima_atualizacao"].strftime("%d/%m/%Y %H:%M:%S")
-    st.caption(f"🕓 Última atualização: {horario}")
+#if st.session_state["ultima_atualizacao"]:
+    #horario = st.session_state["ultima_atualizacao"].strftime("%d/%m/%Y %H:%M:%S")
+    #st.caption(f"🕓 Última atualização: {horario}")
 
 
 tabs = st.tabs(["🔎 Por Placa", "⭐ Relevantes do Mês"])
