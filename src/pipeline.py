@@ -86,8 +86,8 @@ def atualizar_dados():
     else:
         data_inicio = data_inicio_padrao
     
-    data_fim = '2025-07-05'
-    #data_fim = datetime.date.today().isoformat()
+    #data_fim = '2025-07-21'
+    data_fim = datetime.date.today().isoformat()
 
     # 02. buscar novas guias da API
     novos = buscar_guias(base_api_semas, data_inicio, data_fim)
@@ -115,6 +115,9 @@ def atualizar_dados():
                     guia['relevante'] = contem_palavra_pdf(guia['link'], 'tocantins')
             else:
                 guia['num_especie'] = 0
+            
+            if guia['num_especie'] > 20:
+                guia['num_especie'] = 19
 
             inserir_novos_dados([guia])
             guias_processadas.append(guia)
