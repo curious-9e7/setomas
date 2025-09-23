@@ -1,80 +1,60 @@
-import requests, time, datetime, pdfplumber, io
+import requests, time, datetime, logging
+from datetime import timedelta, datetime
+from collections import Counter
 
-from src.db_handle import inserir_novos_dados, listar_guias_data_recente
+from src.supabase_client import supabase
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-base_api_semas = 'http://portaldatransparencia.semas.pa.gov.br/portal-da-transparencia-api/api/v1/guia-florestal/'
-data_inicio_padrao = '2025-07-01'
+BASE_API_SEMAS = 'http://portaldatransparencia.semas.pa.gov.br/portal-da-transparencia-api/api/v1/guia-florestal/'
 
-def buscar_guias(url_base, data_inicio, data_fim):
+def buscar_guias(session, url_base, data_inicio, data_fim, page=1, max_tentativas=8):
+    '''
+    Busca guias florestais para um período de datas, com tratamento de erro 429 (Too Many Requests).
+    '''
 
-    page = 1
-    max_tentativas = 5
     tentativas = 0
-    guias = []
+
+    logging.info(f"Buscando guias entre {data_inicio} e {data_fim}...")
+
+    guias = {}
 
     while True:
         url = f'{url_base}?page={page}&data_inicio={data_inicio}&data_fim={data_fim}'
-        response = requests.get(url)
+        response = session.get(url)
 
         if response.status_code == 429:
-            time.sleep(60)
-            print(f"⚠️ Erro 429 (muitas requisições na buscar_guias). Aguardando {time.sleep(60)}s...")
+            wait_time = 2 ** tentativas # backoff
+            logging.warning(f"⚠️ Erro 429 - aguardando {wait_time} segundos...")
+            time.sleep(wait_time)
+            
             tentativas += 1
             if tentativas >= max_tentativas:
+                logging.error("Número máximo de tentativas atingido.")
                 break
             continue
-        elif response.status_code != 200:
+
+        if response.status_code != 200:
+            logging.error(f"Erro {response.status_code} ao acessar {url}")
             break
 
         tentativas = 0
         dados = response.json().get('data',[])
         if not dados:
             break
+        
+        for dado in dados:
+            guias[dado['numero']] = dado
 
-        guias.extend(dados)
+        logging.debug(f"Página {page} carregada com {len(guias)} guias.")
         page += 1
+        time.sleep(0.5)  # respeitar API
 
-    print(f'Quantidade de páginas pesquisadas:{page}')
-    print(f'Quantidade de guias:{len(guias)}')
+    time.sleep(5)
+    logging.info(f"Total coletado: {len(guias)} guias.")
 
     return guias
-
-
-def buscar_num_especies(url_base, numero, tipo):
-
-    tentativas = 0
-    max_tentativas = 5
-    url = f'{url_base}especies?page=1&id={numero}&tipo={tipo}'
-    
-    while tentativas < max_tentativas:
-        response = requests.get(url)
-
-        if response.status_code == 429:
-            tempo_espera = 60
-            print(f"⚠️ Erro 429 (muitas requisições na buscar_num_especies). Aguardando {(tentativas+1)*tempo_espera}s...")
-            time.sleep(tempo_espera)
-            tentativas += 1
-            continue
-
-        if response.status_code == 200:
-            return response.json().get('total',0)
-        
-        return None
-    
-    return None
-
-
-def contem_palavra_pdf(url, palavra):
-    try:
-        response = requests.get(url, timeout=10)
-        with pdfplumber.open(io.BytesIO(response.content)) as pdf:
-            texto = ''.join([p.extract_text() or '' for p in pdf.pages])
-            return palavra.lower() in texto.lower()
-    except Exception as e:
-        print(f'Erro PDF: {e}')
-        return False
-
 
 
 def atualizar_dados():
@@ -124,6 +104,68 @@ def atualizar_dados():
 
     
     return guias_processadas
-        
 
-#atualizar_dados()
+
+def atualizar_guias():
+    """
+    Atualiza guias florestais buscando da API e comparando com os registros já salvos no Supabase.
+    """
+
+    # buscar a data da guia mais recente salva no banco de dados
+    query = (
+        supabase.table("guias_florestais") \
+        .select("data_emissao") \
+        .order("data_emissao", desc=True) \
+        .limit(1)\
+        .execute()
+    )
+    last_date_db = query.data[0]["data_emissao"]
+
+    # definir período de busca: 5 dias anteriores a data do passo anterior até o dia de hoje
+    backup_days = 5
+    start_date = datetime.strptime(last_date_db, "%Y-%m-%d") - timedelta(days=backup_days)
+    end_date = datetime.now()
+
+    # start_date_str = '2025-08-31'
+    # start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+    # end_date_str = '2025-09-23'
+    # end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+
+    logging.info(f"Buscando guias de {start_date.date()} até {end_date.date()}")
+
+    with requests.Session() as session:
+        # percorre cada dia individualmente
+        for i in range((end_date - start_date).days + 1):
+            current_date = start_date + timedelta(days=i)
+            date_str = current_date.strftime("%Y-%m-%d")
+
+            logging.info(f"📅 Processando dia {date_str}")
+
+            # buscar guias já salvas no banco para esse dia
+            query_by_day = (
+                supabase.table("guias_florestais")
+                .select("numero")
+                .eq("data_emissao", date_str)
+                .execute()
+            )
+            guias_salvas = {row["numero"] for row in query_by_day.data}
+
+            # buscar guias na API para esse dia {numero: dados}
+            guias_buscadas = buscar_guias(session, BASE_API_SEMAS, current_date, current_date)
+
+            # filtrar só as que ainda não estão no banco
+            guias_para_salvar = [guias_buscadas[numero] for numero in guias_buscadas.keys() if numero not in guias_salvas]
+
+            if guias_para_salvar:
+                supabase.table("guias_florestais").upsert(guias_para_salvar, on_conflict="numero").execute()
+                logging.info(f"✅ {len(guias_para_salvar)} guias salvas para {date_str}")
+            else:
+                logging.info(f"ℹ️ Nenhuma nova guia para {date_str}")
+
+    logging.info("Atualização concluída")
+    return 
+
+        
+if __name__ == '__main__':
+
+    data = atualizar_guias()
