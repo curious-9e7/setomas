@@ -2,8 +2,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 
 from src.supabase_client import supabase
-from src.pipeline import atualizar_dados, atualizar_guias
-from src.db_handle import inserir_novos_dados, listar_guias
+from src.pipeline import atualizar_guias
 
 
 # ---------- Configuração da página ----------
@@ -122,7 +121,7 @@ with tabs[0]:
             novos = atualizar_guias()
 
         if novos:
-            st.success(f"{len(novos)} novos registros adicionados.")
+            st.success(f"{novos} novos registros adicionados.")
         else:
             st.info("Nenhum novo dado encontrado.")
 

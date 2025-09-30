@@ -1,13 +1,13 @@
 import requests, time, datetime, logging
 from datetime import timedelta, datetime
-from collections import Counter
 
 from src.supabase_client import supabase
 
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 BASE_API_SEMAS = 'http://portaldatransparencia.semas.pa.gov.br/portal-da-transparencia-api/api/v1/guia-florestal/'
+
 
 def buscar_guias(session, url_base, data_inicio, data_fim, page=1, max_tentativas=8):
     '''
@@ -105,12 +105,13 @@ def atualizar_dados():
     
     return guias_processadas
 
+#def atualizar_relevantes
 
 def atualizar_guias():
     """
     Atualiza guias florestais buscando da API e comparando com os registros já salvos no Supabase.
     """
-
+    qtde = 0
     # buscar a data da guia mais recente salva no banco de dados
     query = (
         supabase.table("guias_florestais") \
@@ -126,9 +127,9 @@ def atualizar_guias():
     start_date = datetime.strptime(last_date_db, "%Y-%m-%d") - timedelta(days=backup_days)
     end_date = datetime.now()
 
-    # start_date_str = '2025-08-31'
+    # start_date_str = '2025-09-23'
     # start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-    # end_date_str = '2025-09-23'
+    # end_date_str = '2025-09-24'
     # end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
     logging.info(f"Buscando guias de {start_date.date()} até {end_date.date()}")
@@ -155,6 +156,15 @@ def atualizar_guias():
 
             # filtrar só as que ainda não estão no banco
             guias_para_salvar = [guias_buscadas[numero] for numero in guias_buscadas.keys() if numero not in guias_salvas]
+            qtde += len(guias_para_salvar)
+
+            # normalizar placas e adicionar o link
+            link = 'https://monitoramento.semas.pa.gov.br/sisflora2/sisflora.api/Gf/VisualizarPdf/'
+            for guia in guias_para_salvar:
+                if (guia['placa'] is not None) and ('-' in guia['placa']):
+                    guia['placa'].replace('-','')
+
+                guia['link'] = link + guia['numero']
 
             if guias_para_salvar:
                 supabase.table("guias_florestais").upsert(guias_para_salvar, on_conflict="numero").execute()
@@ -163,7 +173,7 @@ def atualizar_guias():
                 logging.info(f"ℹ️ Nenhuma nova guia para {date_str}")
 
     logging.info("Atualização concluída")
-    return 
+    return qtde
 
         
 if __name__ == '__main__':
