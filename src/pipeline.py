@@ -1,4 +1,4 @@
-import requests, time, datetime, logging
+import requests, time, datetime, logging, re
 from datetime import timedelta, datetime
 
 from src.supabase_client import supabase
@@ -127,9 +127,9 @@ def atualizar_guias():
     start_date = datetime.strptime(last_date_db, "%Y-%m-%d") - timedelta(days=backup_days)
     end_date = datetime.now()
 
-    # start_date_str = '2025-09-23'
+    # start_date_str = '2025-09-30'
     # start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-    # end_date_str = '2025-09-24'
+    # end_date_str = '2025-10-01'
     # end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
     logging.info(f"Buscando guias de {start_date.date()} até {end_date.date()}")
@@ -161,8 +161,9 @@ def atualizar_guias():
             # normalizar placas e adicionar o link
             link = 'https://monitoramento.semas.pa.gov.br/sisflora2/sisflora.api/Gf/VisualizarPdf/'
             for guia in guias_para_salvar:
-                if (guia['placa'] is not None) and ('-' in guia['placa']):
-                    guia['placa'].replace('-','')
+                placa = guia['placa']
+                if placa is not None:
+                    guia['placa'] = re.sub('-', '', placa)
 
                 guia['link'] = link + guia['numero']
 
@@ -179,3 +180,23 @@ def atualizar_guias():
 if __name__ == '__main__':
 
     data = atualizar_guias()
+
+    # query = (
+    #     supabase.table("guias_florestais") \
+    #     .select("*") \
+    #     .ilike("placa", '%-%') \
+    #     .execute()
+    # )
+
+    # registros = query.data
+
+    # for registro in registros:
+    #     placa_antiga = registro['placa']
+    #     print(placa_antiga)
+
+        # placa_nova = re.sub('-', '', placa_antiga)
+
+        # supabase.table('guias_florestais').update({'placa':placa_nova}).eq('placa', placa_antiga).execute()
+
+        # print(f"✔️ Atualizado: {placa_antiga} -> {placa_nova}")
+
