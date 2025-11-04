@@ -1,4 +1,4 @@
-import requests, time, datetime, logging, re
+import requests, time, datetime, logging, re, os
 from datetime import timedelta, datetime
 
 from src.supabase_client import supabase
@@ -134,6 +134,12 @@ def atualizar_guias():
 
     logging.info(f"Buscando guias de {start_date.date()} até {end_date.date()}")
 
+    # carrega as colunas válidas do banco
+    colunas_existentes = ['id', 'numero', 'data_emissao', 'situacao', 'origem_cpf_cnpj', 'destino_cpf_cnpj', 'origem_endereco', 'origem_bairro',
+                          'destino_endereco', 'destino_bairro', 'placa', 'autorizacoes', 'origem_nome', 'origem_municipio', 'origem_estado', 'origem_pais',
+                          'destino_nome', 'destino_municipio', 'destino_estado', 'destino_pais', 'origem_ceprof', 'destino_ceprof', 'tipo', 'codigo_controle', 'link',
+                          'num_especie', 'relevante']
+
     with requests.Session() as session:
         # percorre cada dia individualmente
         for i in range((end_date - start_date).days + 1):
@@ -158,6 +164,7 @@ def atualizar_guias():
             guias_para_salvar = [guias_buscadas[numero] for numero in guias_buscadas.keys() if numero not in guias_salvas]
             qtde += len(guias_para_salvar)
 
+            guias_filtradas = []
             # normalizar placas e adicionar o link
             link = 'https://monitoramento.semas.pa.gov.br/sisflora2/sisflora.api/Gf/VisualizarPdf/'
             for guia in guias_para_salvar:
@@ -166,6 +173,13 @@ def atualizar_guias():
                     guia['placa'] = re.sub('-', '', placa)
 
                 guia['link'] = link + guia['numero']
+
+                # remover campos que não existem no banco de dados
+                guia_filtrado = {k: v for k,v in guia.items() if k in colunas_existentes}
+                if guia_filtrado:
+                    guias_filtradas.append(guia_filtrado)
+            
+            guias_para_salvar = guias_filtradas
 
             if guias_para_salvar:
                 supabase.table("guias_florestais").upsert(guias_para_salvar, on_conflict="numero").execute()

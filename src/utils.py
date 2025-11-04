@@ -1,5 +1,6 @@
-import requests, time, io, pdfplumber
+import requests, time, io, pdfplumber, logging
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def buscar_num_especies(url_base, numero, tipo):
 
@@ -34,4 +35,3 @@ def contem_palavra_pdf(url, palavra):
     except Exception as e:
         print(f'Erro PDF: {e}')
         return False
-
