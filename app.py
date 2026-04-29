@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import datetime, timedelta
+import pytz
 
 from src.supabase_client import supabase
 from src.pipeline import atualizar_guias
@@ -53,21 +54,37 @@ def exibir_card(guia):
     </div>
     """, unsafe_allow_html=True)
 
+def obter_ultima_atualizacao():
+    """
+    Busca o registro mais recente baseado na coluna de criação
+    """
+
+    try:
+        resposta = (
+            supabase.table("guias_florestais")
+            .select("created_at")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        if resposta.data:
+            data_str = resposta.data[0]["created_at"]
+            # converte a string para datetime
+            dt_utc = datetime.fromisoformat(data_str.replace("Z", "+00:00"))
+
+            fuso_br = pytz.timezone("America/Sao_Paulo")
+            dt_brasilia = dt_utc.astimezone(fuso_br)
+
+            return dt_brasilia
+    
+    except Exception:
+        return None
+    return None
 
 def aba_busca_por_placa():
     if "atualizacao_guias" not in st.session_state:
         st.session_state["atualizacao_guias"] = None
-
-    # if st.button('🔄 Atualizar guias'):
-    #     with st.spinner("⏳ Atualizando dados, aguarde...", show_time=True):
-    #         novos = atualizar_guias()
-
-    #     if novos:
-    #         st.success(f"{novos} novos registros adicionados.")
-    #     else:
-    #         st.info("Nenhum novo dado encontrado.")
-
-    #     st.session_state["atualizacao_guias"] = datetime.now()
 
     if st.session_state["atualizacao_guias"]:
         horario_local = st.session_state["atualizacao_guias"] - timedelta(hours=3)
@@ -127,6 +144,15 @@ def consultar_relevantes_por_mes():
 # ---------- Interface principal ----------
 st.title("🌳 Consulta de Guias Florestais")
 tabs = st.tabs(["🔎 Busca por Placa", "⭐ Guias Relevantes"])
+
+# status global de atualização
+ultima_att = obter_ultima_atualizacao()
+if ultima_att:
+    st.markdown(f"""
+        <div style='text-align: right; color: gray; font-size: 0.8rem;'>
+            Atualizado em: {ultima_att.strftime('%d/%m/%Y %H:%M')}
+        </div>
+    """, unsafe_allow_html=True)
 
 with tabs[0]:
     aba_busca_por_placa()
