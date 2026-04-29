@@ -41,7 +41,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ---------- Funções ----------
+# ---------- Componentes ----------
 def exibir_card(guia):
     st.markdown(f"""
     <div class="card">
@@ -54,23 +54,40 @@ def exibir_card(guia):
     """, unsafe_allow_html=True)
 
 
-def consultar_por_placa():
+def aba_busca_por_placa():
+    if "atualizacao_guias" not in st.session_state:
+        st.session_state["atualizacao_guias"] = None
+
+    # if st.button('🔄 Atualizar guias'):
+    #     with st.spinner("⏳ Atualizando dados, aguarde...", show_time=True):
+    #         novos = atualizar_guias()
+
+    #     if novos:
+    #         st.success(f"{novos} novos registros adicionados.")
+    #     else:
+    #         st.info("Nenhum novo dado encontrado.")
+
+    #     st.session_state["atualizacao_guias"] = datetime.now()
+
+    if st.session_state["atualizacao_guias"]:
+        horario_local = st.session_state["atualizacao_guias"] - timedelta(hours=3)
+        st.caption(f"🕓 Última atualização: {horario_local.strftime('%d/%m/%Y %H:%M:%S')}")
+
     placa_input = st.text_input("Digite a placa (ex: ABC1234):")
 
     if placa_input:
         placa_formatada = placa_input.replace("-", "").upper()
 
-        resposta = supabase.table("guias_florestais") \
+        resposta = (
+            supabase.table("guias_florestais") \
             .select("numero, data_emissao, situacao, placa, link") \
             .ilike("placa", f"%{placa_formatada}%") \
             .order("data_emissao", desc=True) \
             .execute()
+        )
 
         guias = resposta.data
-
         if guias:
-            #st.success(f"🔍 {len(guias)} guia(s) encontradas para a placa {placa_formatada}:")
-
             for guia in guias:
                 exibir_card(guia)
         else:
@@ -112,29 +129,7 @@ st.title("🌳 Consulta de Guias Florestais")
 tabs = st.tabs(["🔎 Busca por Placa", "⭐ Guias Relevantes"])
 
 with tabs[0]:
-    # Se você quiser manter isso fora da função e entre sessões:
-    if "atualizacao_guias" not in st.session_state:
-        st.session_state["atualizacao_guias"] = None
-
-    if st.button('🔄 Atualizar guias'):
-        with st.spinner("⏳ Atualizando dados, aguarde...", show_time=True):
-            novos = atualizar_guias()
-
-        if novos:
-            st.success(f"{novos} novos registros adicionados.")
-        else:
-            st.info("Nenhum novo dado encontrado.")
-
-        # ⏰ Atualiza o horário da última execução
-        st.session_state["atualizacao_guias"] = datetime.now()
-
-    # 🕓 Exibe horário da última atualização
-    if st.session_state["atualizacao_guias"]:
-        horario_str = st.session_state["atualizacao_guias"] - timedelta(hours=3)
-        horario = horario_str.strftime("%d/%m/%Y %H:%M:%S")
-        st.caption(f"🕓 Última atualização: {horario}")
-
-    consultar_por_placa()
+    aba_busca_por_placa()
 
 with tabs[1]:
     consultar_relevantes_por_mes()
