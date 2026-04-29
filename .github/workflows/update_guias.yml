@@ -8,10 +8,16 @@ on:
 jobs:
   update-guias:
     runs-on: ubuntu-latest
-
+    # Permissões necessárias para o Action conseguir fazer o push de volta ao repo
+    permissions:
+      contents: write
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          # Importante: usar um fetch-depth de 0 ou 1 para permitir o push
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -27,3 +33,13 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           BASE_API_SEMAS: ${{ secrets.BASE_API_SEMAS }}
         run: python run_update.py
+
+      - name: Keep Alive (Prevent Workflow Suspension)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          echo "Última execução: $(date)" > keep_alive.txt
+          git add keep_alive.txt
+          # Só faz o commit se houver alteração (evita erro se o arquivo for idêntico)
+          git diff-index --quiet HEAD || git commit -m "chore: keep-alive bot [skip ci]"
+          git push
