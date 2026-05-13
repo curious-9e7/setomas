@@ -98,6 +98,7 @@ def atualizar_guias() -> int:
     Retorna o total de guias inseridas
     """
     qtde = 0
+    todas_novas_guias = []
 
     # busca a data da guia mais recente salva no banco de dados
     query = (
@@ -147,13 +148,13 @@ def atualizar_guias() -> int:
             if novas:
                 supabase.table("guias_florestais").upsert(novas, on_conflict="numero").execute()
                 qtde += len(novas)
+                todas_novas_guias.extend(novas)
                 logging.info(f"✅ {len(novas)} guias salvas para {date_str}")
-                qtde += len(novas)
             else:
                 logging.info(f"ℹ️ Nenhuma nova guia para {date_str}")
 
-    logging.info(f"Atualização concluída. Total inserido: {qtde}")
-    return qtde
+    logging.info(f"Atualização concluída. Total inserido: {len(todas_novas_guias)}")
+    return todas_novas_guias
 
 
 if __name__ == '__main__':

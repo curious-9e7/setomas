@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 import pytz
 
 from src.supabase_client import supabase
-from src.pipeline import atualizar_guias
 
 
 # ---------- Configuração da página ----------
@@ -44,11 +43,13 @@ st.markdown("""
 
 # ---------- Componentes ----------
 def exibir_card(guia):
+    qtd_esp = guia.get('num_especie', 'N/A')
     st.markdown(f"""
     <div class="card">
         <p><b>📄 Número da guia:</b> {guia['numero']}</p>
         <p><b>📅 Data de emissão:</b> {guia['data_emissao'][:10]}</p>
         <p><b>🚗 Placa:</b> {guia['placa']}</p>
+        <p><b>🌱 Quantidade de Espécies:</b> {qtd_esp}</p>
         <p><b>📌 Situação:</b> {guia['situacao']}</p>
         <a href="{guia['link']}" target="_blank">🔗 Visualizar PDF</a>
     </div>
@@ -110,11 +111,19 @@ def aba_busca_por_placa():
         else:
             st.warning("🚫 Nenhuma guia encontrada para essa placa.")
 
+def aba_veiculos_interesse():
+    st.subheader("⭐ Veículos com Rota Tocantins")
 
-def consultar_relevantes_por_mes():
-    st.subheader("📆 Consultar guias relevantes por mês")
+    # colunas para filtros
+    col1, col2 = st.columns(2)
 
-    data_selecionada = st.date_input("Selecione o mês", datetime.today())
+    with col1:
+        data_selecionada = st.date_input("Selecione o Mês/Ano", datetime.today())
+
+    with col2:
+        # filtro de quantidade mínima de espécies
+        min_especies = st.number_input("Mínimo de Esécies", min_value=0, value=5, step=1)
+    
     mes = data_selecionada.month
     ano = data_selecionada.year
 
@@ -124,17 +133,25 @@ def consultar_relevantes_por_mes():
     else:
         data_fim = f"{ano}-{mes + 1:02d}-01"
 
-    resposta = supabase.table("guias_florestais") \
-        .select("numero, data_emissao, situacao, placa, link") \
-        .eq("relevante", True) \
-        .gte("data_emissao", data_inicio) \
-        .lt("data_emissao", data_fim) \
-        .order("data_emissao", desc=True) \
-        .execute()
+    # construção da query com os filtros
+    query = (
+        supabase.table("guias_florestais")
+        .select("numero, data_emissao, situacao, placa, link, num_especie")
+        .eq("relevante", True)
+        .gte("data_emissao", data_inicio)
+        .lt("data_emissao", data_fim)
+    )
+    
+    # aplica filtro de quantidade de espécie
+    if min_especies > 0:
+        query = query.gte("num_especie", min_especies)
 
+    # ordenação da mais recente para a mais antiga
+    resposta = query.order("data_emissao", desc=True).execute()
     guias = resposta.data
 
     if guias:
+        st.info(f"📋 Mostrando {len(guias)} guias encontradas.")
         for guia in guias:
             exibir_card(guia)
     else:
@@ -158,4 +175,4 @@ with tabs[0]:
     aba_busca_por_placa()
 
 with tabs[1]:
-    consultar_relevantes_por_mes()
+    aba_veiculos_interesse()
