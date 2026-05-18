@@ -122,7 +122,7 @@ def aba_veiculos_interesse():
 
     with col2:
         # filtro de quantidade mínima de espécies
-        min_especies = st.number_input("Mínimo de Esécies", min_value=0, value=5, step=1)
+        min_especies = st.number_input("Mínimo de Espécies", min_value=0, value=5, step=1)
     
     mes = data_selecionada.month
     ano = data_selecionada.year
