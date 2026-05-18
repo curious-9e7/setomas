@@ -39,6 +39,10 @@ def buscar_num_especies(url_base, numero, tipo):
     
     return 0
 
+import requests
+import pdfplumber
+import io
+
 def passa_pelo_tocantins(url_pdf):
     try:
         response = requests.get(url_pdf, timeout=15)
@@ -56,7 +60,11 @@ def passa_pelo_tocantins(url_pdf):
             # palavras-chave que indicam rota ou destino para o TO
             palavras_chave = ['tocantins', '/to\n', 'uf:to', 'uf: to', 'to-', '-to']
 
-            return any(palavra in texto_completo for palavra in palavras_chave)
+            # Conta quantas palavras distintas da lista estão presentes no texto
+            qtd_encontrada = sum(palavra in texto_completo for palavra in palavras_chave)
+
+            # Retorna True apenas se encontrar pelo menos 2 elementos diferentes
+            return qtd_encontrada >= 2
         
     except Exception as e:
         print(f"Erro ao ler PDF da guia: {e}")
