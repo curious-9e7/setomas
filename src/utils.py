@@ -60,11 +60,8 @@ def passa_pelo_tocantins(url_pdf):
             # palavras-chave que indicam rota ou destino para o TO
             palavras_chave = ['tocantins', '/to\n', 'uf:to', 'uf: to', 'to-', '-to']
 
-            # Conta quantas palavras distintas da lista estão presentes no texto
-            qtd_encontrada = sum(palavra in texto_completo for palavra in palavras_chave)
-
-            # Retorna True apenas se encontrar pelo menos 2 elementos diferentes
-            return qtd_encontrada >= 2
+            # Verifica se ALGUMA das palavras-chave aparece pelo menos 3 vezes no documento
+            return any(texto_completo.count(palavra) >= 3 for palavra in palavras_chave)
         
     except Exception as e:
         print(f"Erro ao ler PDF da guia: {e}")
