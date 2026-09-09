@@ -1,5 +1,5 @@
 from src.pipeline import atualizar_guias
-from src.utils import buscar_num_especies, passa_pelo_tocantins
+from src.utils import buscar_num_especies, passa_pelo_tocantins, extrair_nomes_especies_pdf
 from src.pipeline import BASE_API_SEMAS
 from src.supabase_client import supabase
 import time
@@ -21,17 +21,21 @@ if __name__ == "__main__":
             # verifica a rota baixando e lendo o texto ao PDF
             rota_to = passa_pelo_tocantins(url_pdf)
 
+            # Extrai a lista de nomes das espécies
+            lista_nomes_especies = extrair_nomes_especies_pdf(url_pdf)
+
             # é relevante ?
             is_relevante = rota_to
 
-            print(f"Guia {numero} | Espécies: {qtd_especies} | Passa no TO: {rota_to}")
+            print(f"Guia {numero} | Espécies: {qtd_especies} | Nomes: {len(lista_nomes_especies)} extraídos | Passa no TO: {rota_to}")
 
             # Atualiza o banco de dados com as novas informações
             try:
                 supabase.table('guias_florestais') \
                     .update({
                         'num_especie': qtd_especies,
-                        'relevante': is_relevante
+                        'relevante': is_relevante,
+                        'nomes_especies': lista_nomes_especies
                     }) \
                     .eq('numero', numero) \
                     .execute()

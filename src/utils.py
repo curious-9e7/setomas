@@ -39,10 +39,6 @@ def buscar_num_especies(url_base, numero, tipo):
     
     return 0
 
-import requests
-import pdfplumber
-import io
-
 def passa_pelo_tocantins(url_pdf):
     try:
         response = requests.get(url_pdf, timeout=15)
@@ -66,3 +62,37 @@ def passa_pelo_tocantins(url_pdf):
     except Exception as e:
         print(f"Erro ao ler PDF da guia: {e}")
         return False
+
+def extrair_nomes_especies_pdf(url_pdf):
+    """
+    Lê o PDF em memória e extrai os nomes populares da tabela.
+    Retorna uma lista de strings (compatível com array no Supabase).
+    """
+    try:
+        response = requests.get(url_pdf, timeout=15)
+        if response.status_code != 200:
+            return []
+        
+        nomes_populares = set()
+        with pdfplumber.open(io.BytesIO(response.content)) as pdf:
+            for page in pdf.pages:
+                tabelas = page.extract_tables()
+                for tabela in tabelas:
+                    if not tabela:
+                        continue
+                    
+                    cabecalho = tabela[0]
+                    cabecalho_limpo = [str(col).replace('\n', ' ').strip() for col in cabecalho if col]
+                    
+                    if "Nome Popular" in cabecalho_limpo:
+                        indice = cabecalho_limpo.index("Nome Popular")
+                        for linha in tabela[1:]:
+                            if len(linha) > indice:
+                                nome = str(linha[indice]).replace('\n', ' ').strip()
+                                if nome and nome != "None":
+                                    nomes_populares.add(nome)
+                                    
+        return list(nomes_populares)
+    except Exception as e:
+        print(f"Erro ao extrair espécies do PDF: {e}")
+        return []

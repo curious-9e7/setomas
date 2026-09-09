@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime, timedelta
-import pytz
+import pytz, unicodedata
 
 from src.supabase_client import supabase
 
@@ -40,16 +40,28 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def normalizar_texto(texto):
+    """Remove acentos e converte para letras minúsculas."""
+    if not texto:
+        return ""
+    # Normaliza os caracteres (separa letras de acentos) e remove os acentos
+    texto_sem_acento = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('utf-8')
+    return texto_sem_acento.lower().strip()
 
 # ---------- Componentes ----------
 def exibir_card(guia):
     qtd_esp = guia.get('num_especie', 'N/A')
+    
+    # Formata a lista de espécies para exibição no card
+    lista_esp = guia.get('nomes_especies')
+    nomes_formatados = ", ".join(lista_esp) if lista_esp else "Não identificadas"
+
     st.markdown(f"""
     <div class="card">
         <p><b>📄 Número da guia:</b> {guia['numero']}</p>
         <p><b>📅 Data de emissão:</b> {guia['data_emissao'][:10]}</p>
         <p><b>🚗 Placa:</b> {guia['placa']}</p>
-        <p><b>🌱 Quantidade de Espécies:</b> {qtd_esp}</p>
+        <p><b>🌱 Espécies ({qtd_esp}):</b> {nomes_formatados}</p>
         <p><b>📌 Situação:</b> {guia['situacao']}</p>
         <a href="{guia['link']}" target="_blank">🔗 Visualizar PDF</a>
     </div>
@@ -114,18 +126,78 @@ def aba_busca_por_placa():
 def aba_veiculos_interesse():
     st.subheader("⭐ Veículos com Rota Tocantins")
 
-    # colunas para filtros
-    col1, col2 = st.columns(2)
+    # Organizando os filtros em 4 colunas para otimizar o espaço na tela
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 3])
 
     with col1:
-        data_selecionada = st.date_input("Selecione o Mês/Ano", datetime.today())
+        meses = {
+            "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, 
+            "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, 
+            "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
+        }
+        mes_atual = datetime.today().month
+        mes_selecionado = st.selectbox("Mês", list(meses.keys()), index=mes_atual - 1)
+        mes = meses[mes_selecionado]
 
     with col2:
-        # filtro de quantidade mínima de espécies
-        min_especies = st.number_input("Mínimo de Espécies", min_value=0, value=5, step=1)
+        ano_atual = datetime.today().year
+        ano = st.selectbox("Ano", [ano_atual, ano_atual - 1, ano_atual - 2])
+
+    with col3:
+        min_especies = st.number_input("Mín. Espécies", min_value=0, value=5, step=1)
+
+    # Tratamento das datas para a query
+    data_inicio = f"{ano}-{mes:02d}-01"
+    if mes == 12:
+        data_fim = f"{ano + 1}-01-01"
+    else:
+        data_fim = f"{ano}-{mes + 1:02d}-01"
+
+    # Construção da query no banco de dados
+    # Nota: A coluna 'nomes_especies' foi adicionada ao select
+    query = (
+        supabase.table("guias_florestais")
+        .select("numero, data_emissao, situacao, placa, link, num_especie, nomes_especies")
+        .eq("relevante", True)
+        .gte("data_emissao", data_inicio)
+        .lt("data_emissao", data_fim)
+    )
     
-    mes = data_selecionada.month
-    ano = data_selecionada.year
+    if min_especies > 0:
+        query = query.gte("num_especie", min_especies)
+
+    resposta = query.order("data_emissao", desc=True).execute()
+    guias = resposta.data
+
+    # Exibição dos resultados
+    if guias:
+        st.info(f"📋 Mostrando {len(guias)} guias encontradas.")
+        for guia in guias:
+            exibir_card(guia)
+    else:
+        st.warning("🚫 Nenhuma guia relevante encontrada para os filtros selecionados.")
+
+def aba_busca_especie():
+    st.subheader("🌿 Busca Específica por Espécie (Rota Tocantins)")
+
+    col1, col2, col3 = st.columns([2, 2, 4])
+
+    with col1:
+        meses = {
+            "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, 
+            "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, 
+            "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
+        }
+        mes_atual = datetime.today().month
+        mes_selecionado = st.selectbox("Mês", list(meses.keys()), index=mes_atual - 1, key="mes_busca_esp")
+        mes = meses[mes_selecionado]
+
+    with col2:
+        ano_atual = datetime.today().year
+        ano = st.selectbox("Ano", [ano_atual, ano_atual - 1, ano_atual - 2], key="ano_busca_esp")
+
+    with col3:
+        especie_filtro = st.text_input("Nome da Espécie", placeholder="Ex: cupiuba (sem acento)")
 
     data_inicio = f"{ano}-{mes:02d}-01"
     if mes == 12:
@@ -133,34 +205,52 @@ def aba_veiculos_interesse():
     else:
         data_fim = f"{ano}-{mes + 1:02d}-01"
 
-    # construção da query com os filtros
-    query = (
-        supabase.table("guias_florestais")
-        .select("numero, data_emissao, situacao, placa, link, num_especie")
-        .eq("relevante", True)
-        .gte("data_emissao", data_inicio)
-        .lt("data_emissao", data_fim)
-    )
-    
-    # aplica filtro de quantidade de espécie
-    if min_especies > 0:
-        query = query.gte("num_especie", min_especies)
+    if especie_filtro:
+        # Consulta COM o filtro de rota Tocantins ativo
+        query = (
+            supabase.table("guias_florestais")
+            .select("numero, data_emissao, situacao, placa, link, num_especie, nomes_especies, relevante")
+            .eq("relevante", True)  # Filtro mantido conforme solicitado
+            .gte("data_emissao", data_inicio)
+            .lt("data_emissao", data_fim)
+            .order("data_emissao", desc=True)
+            .execute()
+        )
+        
+        guias = query.data
+        guias_filtradas = []
+        termo_busca = normalizar_texto(especie_filtro)
 
-    # ordenação da mais recente para a mais antiga
-    resposta = query.order("data_emissao", desc=True).execute()
-    guias = resposta.data
-
-    if guias:
-        st.info(f"📋 Mostrando {len(guias)} guias encontradas.")
         for guia in guias:
-            exibir_card(guia)
-    else:
-        st.warning("🚫 Nenhuma guia relevante encontrada para o mês selecionado.")
+            nomes_raw = guia.get('nomes_especies')
+            
+            # Tratamento híbrido: funciona para text antigo e para o novo jsonb
+            if isinstance(nomes_raw, str):
+                try:
+                    lista_especies = json.loads(nomes_raw)
+                except json.JSONDecodeError:
+                    lista_especies = []
+            elif isinstance(nomes_raw, list):
+                lista_especies = nomes_raw
+            else:
+                lista_especies = []
+            
+            # Verifica se a espécie buscada está na lista extraída da guia
+            if any(termo_busca in normalizar_texto(esp) for esp in lista_especies):
+                guias_filtradas.append(guia)
 
+        if guias_filtradas:
+            st.success(f"🔎 Encontradas {len(guias_filtradas)} guias relevantes transportando a espécie selecionada.")
+            for guia in guias_filtradas:
+                exibir_card(guia)
+        else:
+            st.warning("🚫 Nenhuma guia com rota Tocantins foi encontrada transportando essa espécie no período selecionado.")
+    else:
+        st.info("👆 Digite o nome de uma espécie para iniciar a busca.")
 
 # ---------- Interface principal ----------
 st.title("🌳 Consulta de Guias Florestais")
-tabs = st.tabs(["🔎 Busca por Placa", "⭐ Guias Relevantes"])
+tabs = st.tabs(["🔎 Busca por Placa", "⭐ Guias Relevantes", "🌿 Busca por Espécie"])
 
 # status global de atualização
 ultima_att = obter_ultima_atualizacao()
@@ -176,3 +266,7 @@ with tabs[0]:
 
 with tabs[1]:
     aba_veiculos_interesse()
+
+with tabs[2]:
+    # A nova aba dedicada entra aqui
+    aba_busca_especie()
