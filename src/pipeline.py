@@ -94,7 +94,7 @@ def atualizar_guias() -> int:
     """
     Busca guias novas na API da SEMAS e salva no Supabase
      - parte da data mais recente no banco, com 5 dias de margem para reprocessar guias que possam ter chegado depois
-     - para cada dia do intervalo, compara com o que há existe no banco e insere apenas registros novos
+     - para cada dia do intervalo, compara com o que já existe no banco e insere apenas registros novos
     Retorna o total de guias inseridas
     """
     qtde = 0
