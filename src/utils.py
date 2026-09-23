@@ -74,7 +74,6 @@ def processar_pdf_guia(url_pdf: str) -> Tuple[List[str], List[str]]:
                 # --- Tarefa 1: Extração de Texto ---
                 texto = page.extract_text()
                 if texto:
-                    # Agora mantemos o texto original (com maiúsculas e acentos) para o Regex analisar
                     texto_completo += texto + "\n"
 
                 # --- Tarefa 2: Extração de Tabelas ---
@@ -93,31 +92,25 @@ def processar_pdf_guia(url_pdf: str) -> Tuple[List[str], List[str]]:
                                 if nome and nome.lower() != "none":
                                     nomes_populares.add(nome)
 
+        # NOVO: Prevenção de Falsos Positivos Geográficos
+        # Substitui menções a rios que têm nomes de estados para que o Regex dos estados os ignore
+        texto_completo = re.sub(r'\brio\s+amazonas\b', 'rio_ignorado', texto_completo, flags=re.IGNORECASE)
+
         estados_encontrados = []
         
         # --- Tarefa 3: Varredura de Estados com Regex Seguro ---
         for uf, nome_estado in ESTADOS_BR.items():
             
-            # 1. Busca o nome completo do estado exatamente como é (com acento se tiver)
-            # O \b garante que é a palavra exata.
             padroes = [rf'\b{nome_estado}\b']
+            padroes.append(rf'\buf\s*:\s*{uf}\b')
+            padroes.append(rf'/\s*{uf}\b')
+            padroes.append(rf',\s*{uf}\b')
             
-            # 2. Busca a sigla acompanhada de marcadores explícitos de localidade
-            padroes.append(rf'\buf\s*:\s*{uf}\b')  # Ex: UF: PA, uf:pa
-            padroes.append(rf'/\s*{uf}\b')         # Ex: /PA, / PA
-            padroes.append(rf',\s*{uf}\b')         # Ex: , PA
-            
-            # 3. Busca a sigla com hífen
-            # A regra do hífen é desativada APENAS para o Sergipe (SE)
-            # para não gerar falso positivo com pronomes de verbos ("inicia-se")
             if uf != 'SE':
-                padroes.append(rf'-\s*{uf}\b')     # Ex: -PA, - PA
-                padroes.append(rf'\b{uf}\s*-')     # Ex: PA-, PA -
+                padroes.append(rf'-\s*{uf}\b')
+                padroes.append(rf'\b{uf}\s*-')
                 
-            # Compila todas as regras usando IGNORECASE (lida com maiúsculas/minúsculas sozinho)
             regex_estado = re.compile('|'.join(padroes), re.IGNORECASE)
-            
-            # Encontra e conta todas as ocorrências válidas
             ocorrencias = regex_estado.findall(texto_completo)
             
             if len(ocorrencias) >= 3:
@@ -128,3 +121,6 @@ def processar_pdf_guia(url_pdf: str) -> Tuple[List[str], List[str]]:
     except Exception as e:
         logging.error(f"Erro interno ao processar o PDF da guia: {e}")
         return [], []
+
+
+    
